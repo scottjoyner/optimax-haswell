@@ -1,0 +1,25 @@
+diff --git a/ggml/src/ggml-vulkan/ggml-vulkan.cpp b/ggml/src/ggml-vulkan/ggml-vulkan.cpp
+index c1d86aa..51a1ef6 100644
+--- a/ggml/src/ggml-vulkan/ggml-vulkan.cpp
++++ b/ggml/src/ggml-vulkan/ggml-vulkan.cpp
+@@ -6807,12 +6807,20 @@ static vk_device ggml_vk_get_device(size_t idx) {
+ #endif
+         }
+ 
+-        if (!vk11_features.storageBuffer16BitAccess) {
++        // Experimental: permit initialization without advertised 16-bit
++        // storage when this device is not using the fp16 path.
++        const bool has_16bit_storage = vk11_features.storageBuffer16BitAccess ||
++                                       vk11_features.uniformAndStorageBuffer16BitAccess;
++        if (!has_16bit_storage && device->fp16) {
+             std::cerr << "ggml_vulkan: device " << GGML_VK_NAME << idx << " does not support 16-bit storage." << std::endl;
+             throw std::runtime_error("Unsupported device");
+         }
+ 
+-        device_extensions.push_back("VK_KHR_16bit_storage");
++        if (device->fp16) {
++            device_extensions.push_back("VK_KHR_16bit_storage");
++        }
+ 
+ #ifdef GGML_VULKAN_VALIDATE
+         device_extensions.push_back("VK_KHR_shader_non_semantic_info");
