@@ -46,7 +46,7 @@ Final recorded result for the showcased model on Mesa 26.1.7:
 
 A Gemma 3 1B Q4_0 run recorded pp512 ~44.7 t/s / tg128 ~7.85 t/s (see `docs/benchmarks.md`). A 3.09B Q4_K_S model was observed with partial Vulkan offload, but CPU inference was faster on this hardware. Larger/full-offload attempts were constrained by the approximately 1.5 GiB device heap.
 
-See [`docs/observations.md`](docs/observations.md) and [`docs/benchmarks.md`](docs/benchmarks.md).
+See [`docs/observations.md`](docs/observations.md), [`docs/benchmarks.md`](docs/benchmarks.md), and the separate [`docs/ling-lenovo-pr27723.md`](docs/ling-lenovo-pr27723.md) evidence note for the Intel UHD 620 Ling A/B test.
 
 ## What is not established
 
