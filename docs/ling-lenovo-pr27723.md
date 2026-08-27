@@ -17,8 +17,8 @@ upstream `llama.cpp` PR #27723, not a claim of general Vulkan or model support.
 - Context: 8192 tokens for the extended quant comparison
 - Slots: 1
 - GPU configuration: `--n-gpu-layers 999 --flash-attn off --ubatch-size 64`
-- All tests used a temporary loopback-only endpoint. Production admission and
-  signed runtime projections were not modified.
+- The isolated benchmark phase used temporary loopback-only endpoints; the
+  subsequent production specialist deployment is documented separately below.
 
 The tested model repository is `SC117/Ling-3.0-tiny-abliterated-APEX-GGUF`.
 
@@ -159,9 +159,10 @@ request, with two slots as a bounded fallback only when latency is acceptable.
 
 This evidence does not qualify Lenovo as a primary general-purpose inference
 node. It supports a low-priority, one-slot specialist role for Ling/Compact or
-similar workloads. Primary admission would require current signed projection,
-real routed lifecycle proof, repeated task-family quality results, and a measured
-capacity policy. No production admission was changed during this work.
+similar workloads. The tested evidence was later used to admit the persistent
+Ling specialist as AssistX projection generation 478, with a 300-second queue
+timeout and approved LAN/Tailscale paths. It remains deliberately scoped as a
+specialist rather than a general primary provider.
 
 ## Scope limits
 
