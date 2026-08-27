@@ -26,11 +26,11 @@ E llama_model_load: error loading model: Unsupported device
 
 An experimental patch changes the Vulkan initialization guard so that lack of advertised 16-bit storage is fatal only when `device->fp16` is enabled, and only requests `VK_KHR_16bit_storage` in that case.
 
-With that patch applied, the following configuration was observed to load and run a Gemma 3 1B Q4_0 model with full GPU layer offload:
+With that patch applied, the following configuration was observed to load and run small Q4_0/Q5_K_M models with full GPU layer offload on the Haswell iGPU. The showcased example uses `LFM2.5-1.2B-Instruct-Q5_K_M` (open-weight, fetchable without gated access, ~804 MB); `LFM2.5-1.2B-Instruct-Q4_0` (~696 MB) also runs. Measured numbers for both are in `docs/benchmarks.md`.
 
 ```bash
 llama-bench \
-  -m gemma-3-1b-q4_0.gguf \
+  -m LFM2.5-1.2B-Instruct-Q5_K_M.gguf \
   -ngl 99 \
   -fa off \
   -ub 64 \
@@ -38,13 +38,13 @@ llama-bench \
   -n 128
 ```
 
-Final recorded result on Mesa 26.1.7:
+Final recorded result for the showcased model on Mesa 26.1.7:
 
-- prompt processing (`pp512`): approximately **44.7 t/s**
-- token generation (`tg128`): approximately **7.85 t/s**
-- three consecutive stability probes completed with no recorded i915 GPU hang events
+- `LFM2.5-1.2B-Instruct-Q5_K_M` prompt processing (`pp512`): **32.36 t/s**
+- token generation (`tg128`): **6.05 t/s** (Vulkan, full offload)
+- CPU generation for the same model: 4.04 t/s, so Vulkan is ~1.5x faster at generation
 
-A 3.09B Q4_K_S model was also observed with partial Vulkan offload, but CPU inference was faster on this hardware. Larger/full-offload attempts were constrained by the approximately 1.5 GiB device heap.
+A Gemma 3 1B Q4_0 run recorded pp512 ~44.7 t/s / tg128 ~7.85 t/s (see `docs/benchmarks.md`). A 3.09B Q4_K_S model was observed with partial Vulkan offload, but CPU inference was faster on this hardware. Larger/full-offload attempts were constrained by the approximately 1.5 GiB device heap.
 
 See [`docs/observations.md`](docs/observations.md) and [`docs/benchmarks.md`](docs/benchmarks.md).
 
@@ -63,9 +63,10 @@ Possible explanations must be tested rather than assumed: tensor placement, conv
 ## Repository layout
 
 - `patches/0001-hasvk-relax-16bit-storage-init-guard.patch` — experimental patch used in testing
-- `scripts/build-llama-vulkan.sh` — sanitized reproducible build helper
+- `scripts/build-llama-vulkan.sh` — sanitized reproducible build helper (builds with `GGML_NATIVE=OFF` so the binary runs on Haswell; also builds `llama-perplexity`)
 - `scripts/probe-vulkan.sh` — records Vulkan/driver capabilities without machine-specific configuration
-- `scripts/run-benchmark.sh` — benchmark wrapper matching the documented test
+- `scripts/run-benchmark.sh` — benchmark wrapper running both CPU and Vulkan backends
+- `scripts/verify-correctness.sh` — CPU-vs-Vulkan perplexity comparison for numerical-correctness validation
 - `docs/observations.md` — fact-only technical record
 - `docs/benchmarks.md` — recorded performance data and limitations
 - `docs/open-questions.md` — unresolved correctness questions and proposed validation work
@@ -75,6 +76,9 @@ Possible explanations must be tested rather than assumed: tensor placement, conv
 The corresponding draft `llama.cpp` pull request is:
 
 - ggml-org/llama.cpp#27723 — `ggml-vulkan: allow fp32-only devices (Haswell hasvk)`
+
+The carried patch in `patches/` is synchronized from the private `optiplex-optimax`
+benchmarking repository, which is the source of the hasvk bring-up work documented here.
 
 The PR title and original interpretation are broader than what is currently proven. This repository intentionally uses more conservative language while the behavior is investigated.
 

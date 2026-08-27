@@ -7,8 +7,10 @@ index c1d86aa..51a1ef6 100644
          }
  
 -        if (!vk11_features.storageBuffer16BitAccess) {
-+        // Experimental: permit initialization without advertised 16-bit
-+        // storage when this device is not using the fp16 path.
++        // hasvk (Haswell) exposes no 16-bit storage feature bits
++        // (storageBuffer16BitAccess = false, shaderFloat16 = false).
++        // Only hard-require 16-bit storage when fp16 will actually be used;
++        // otherwise continue with the existing fp32 fallback path.
 +        const bool has_16bit_storage = vk11_features.storageBuffer16BitAccess ||
 +                                       vk11_features.uniformAndStorageBuffer16BitAccess;
 +        if (!has_16bit_storage && device->fp16) {

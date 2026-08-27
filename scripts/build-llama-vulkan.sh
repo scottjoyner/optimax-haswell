@@ -29,9 +29,10 @@ fi
 cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Release \
   -DGGML_VULKAN=ON \
+  -DGGML_NATIVE=OFF \
   -DLLAMA_CURL=OFF
 
-cmake --build build --config Release -j"$JOBS" --target llama-cli llama-bench
+cmake --build build --config Release -j"$JOBS" --target llama-cli llama-bench llama-perplexity
 
 printf '\nBuilt:\n  %s\n  %s\n' \
   "$SRC/build/bin/llama-cli" \

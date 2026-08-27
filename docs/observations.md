@@ -104,6 +104,41 @@ The useful observation is narrower:
 
 For the tested 3B workload, CPU inference was faster.
 
+## LFM2.5 1.2B observation (patched build, Mesa 26.1.7)
+
+With the patched build, `LFM2.5-1.2B-Instruct-Q4_0` and `-Q5_K_M` were observed
+running with full GPU layer offload (`-ngl 99 -fa off -ub 64`) on the Haswell
+HD 4600 / hasvk device. Both executed and produced valid prompt-processing and
+token-generation throughput (see `docs/benchmarks.md`). For these 1.2B models,
+Vulkan generation was faster than CPU.
+
+This confirms the fp32 fallback path carries these workloads. Numerical
+correctness was then verified directly: `llama-perplexity` on a fixed ~960-word
+corpus gave identical perplexity for CPU and Vulkan backends to five significant
+figures (Q5_K_M: 6.2488 both; Q4_0: 6.4569 both). See `docs/benchmarks.md` and
+`docs/open-questions.md` question 4.
+
+The Vulkan advantage is model-size dependent. On the smaller `Qwen2.5-0.5B-Instruct-Q4_0`,
+CPU generation (12.65 t/s) was actually faster than Vulkan (10.98 t/s); the Haswell
+iGPU's limited compute/bandwidth only pays off above a certain model size.
+
+## Patch necessity (control build)
+
+A clean control was performed: the backend was rebuilt *without* the patch and
+run on the same device. It aborted during initialization with
+`ggml_vulkan: device Vulkan0 does not support 16-bit storage.` and
+`error: failed to load model`. This confirms the patch is strictly required for
+the hasvk device, not merely an optimization.
+
+## Benign warnings observed
+
+During Vulkan runs on this device, these non-fatal messages appear and do not
+indicate failure:
+
+- `common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 99, abort` — harmless when `-ngl` is set explicitly;
+- `llama_kv_cache: the V embeddings have different sizes across layers and FA is not enabled - padding V cache to 512` — expected with `-fa off`;
+- `Vulkan0 compute buffer size of 123.0312 MiB, does not match expectation of 122.0002 MiB` — benign buffer-accounting discrepancy.
+
 ## Maintainer feedback that constrains interpretation
 
 Maintainers of `llama.cpp` have stated that the Vulkan backend requires f16 storage support because parts of model data are stored in fp16.
