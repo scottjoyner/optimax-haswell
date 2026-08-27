@@ -137,6 +137,32 @@ The endpoint must advertise the exact alias through `/v1/models` before sending 
 completion. A listening port or successful model load alone is not sufficient
 qualification evidence.
 
+## Concurrency and primary-node qualification
+
+A second isolated service run used I-Compact with `--parallel 2`, while preserving
+all other settings and `--reasoning-preserve`. Two simultaneous requests both
+returned HTTP 200, `finish_reason=stop`, and correct final content:
+
+- wall time: 33.498 seconds;
+- request latency: 24.181 and 33.481 seconds;
+- generated tokens: 107 and 201;
+- per-request generation rates: 5.41 and 6.92 tokens/s;
+- aggregate generated throughput: approximately 9.19 tokens/s;
+- peak server RSS: approximately 5.87 GiB;
+- no Vulkan device-loss, assertion, or crash messages.
+
+The single-slot Compact result was approximately 10.01 tokens/s generation. Thus,
+two slots provide concurrent service capacity but do not increase aggregate
+throughput on this two-core/UHD 620 node; they divide the available compute and
+increase individual latency. The measured safe posture is one preferred active
+request, with two slots as a bounded fallback only when latency is acceptable.
+
+This evidence does not qualify Lenovo as a primary general-purpose inference
+node. It supports a low-priority, one-slot specialist role for Ling/Compact or
+similar workloads. Primary admission would require current signed projection,
+real routed lifecycle proof, repeated task-family quality results, and a measured
+capacity policy. No production admission was changed during this work.
+
 ## Scope limits
 
 These results do not establish:
