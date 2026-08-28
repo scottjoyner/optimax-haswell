@@ -9,6 +9,7 @@ class CompletionEvidence:
     tests_passed: bool
     required_artifacts_present: bool
     process_ok: bool
+    completion_verified: bool = False
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,6 @@ def deterministic_completion_gate(
     )
     if has_blocker or not evidence_ok:
         return CompletionDecision(False, "blocking_evidence")
-    if has_completion:
+    if has_completion or evidence.completion_verified:
         return CompletionDecision(True, "verified_completion")
     return CompletionDecision(False, "no_completion_signal")
