@@ -117,3 +117,21 @@ specialist. It preserves concurrent LFM progress while preventing unrelated
 conversations from accumulating behind a slow reasoning request. It does not
 prove that two Ling slots improve throughput; that remains a separate measured
 experiment.
+
+## Live capacity matrix (2026-08-27)
+
+A corrected short arithmetic prompt was used to avoid the known LFM failure mode
+on ultra-terse `return only the number` prompts. Three cases were launched under
+shared load: two LFM requests, one Ling request, and two Ling requests.
+
+- LFM x2: both correct, both `finish_reason=stop`, 8.10 seconds wall time;
+- Ling x1 under the mixed matrix: timed out at the 30-second bound;
+- Ling x2: one correct completion in 28.03 seconds and one timeout;
+- both endpoints returned HTTP 200 with the expected model IDs afterward.
+
+This does not justify two Ling slots. Under mixed load, Ling's useful completion
+rate degraded, while LFM sustained two concurrent correct responses. Keep the
+Ling specialist at one active slot with no waiting queue and route overflow to
+LFM or an explicit fallback. The ultra-terse prompt result is retained as a
+prompt-compatibility finding: LFM produced malformed numeric strings for that
+shape but answered correctly when asked for a brief explanation.
