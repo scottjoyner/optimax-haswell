@@ -67,6 +67,31 @@ async def test_ling_timeout_is_explicit_and_lfm_can_finish_without_claiming_revi
 
 
 @pytest.mark.asyncio
+async def test_shared_ling_admission_rejects_second_conversation_without_queueing():
+    release = asyncio.Event()
+
+    async def provider(model, messages, phase):
+        if model == "ling":
+            await release.wait()
+            yield {"content": "ling", "finish_reason": "stop"}
+        elif phase == "initial":
+            yield {"content": "draft", "finish_reason": "stop"}
+        else:
+            yield {"content": "final", "finish_reason": "stop"}
+
+    controller = DualModelAdjudicator(provider, ling_slots=1, ling_queue_limit=0)
+    first = asyncio.create_task(controller.run("first"))
+    await asyncio.sleep(0)
+    second_result, _ = await controller.run("second")
+    release.set()
+    first_result, _ = await first
+
+    assert first_result.ling_available is True
+    assert second_result.ling_available is False
+    assert "ling_unavailable" in second_result.flags
+
+
+@pytest.mark.asyncio
 async def test_reasoning_and_content_are_preserved_separately_for_ling():
     async def provider(model, messages, phase):
         if phase == "initial" and model == "ling":

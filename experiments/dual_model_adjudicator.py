@@ -67,11 +67,21 @@ class DualModelAdjudicator:
         ling_timeout_s: float = 300.0,
         lfm_timeout_s: float = 180.0,
         event_sink: Callable[[dict[str, Any]], Awaitable[None] | None] | None = None,
+        ling_slots: int = 1,
+        ling_queue_limit: int = 0,
     ) -> None:
+        if ling_slots < 1:
+            raise ValueError("ling_slots must be >= 1")
+        if ling_queue_limit != 0:
+            raise ValueError("prototype only supports a zero-waiting-queue policy")
         self.provider = provider
         self.ling_timeout_s = ling_timeout_s
         self.lfm_timeout_s = lfm_timeout_s
         self.event_sink = event_sink
+        self.ling_slots = ling_slots
+        self.ling_queue_limit = ling_queue_limit
+        self._ling_admission_lock = asyncio.Lock()
+        self._ling_inflight = 0
 
     async def _emit(self, event: dict[str, Any]) -> None:
         if self.event_sink is None:
@@ -89,6 +99,29 @@ class DualModelAdjudicator:
         session_id: str,
     ) -> ProviderResponse:
         started = time.monotonic()
+        admitted_ling = False
+        if model == "ling" and phase == "initial":
+            async with self._ling_admission_lock:
+                if self._ling_inflight >= self.ling_slots:
+                    error = "admission full; zero-waiting-queue policy"
+                    await self._emit(
+                        {
+                            "type": "ling_unavailable",
+                            "session_id": session_id,
+                            "model": model,
+                            "phase": phase,
+                            "reason": error,
+                        }
+                    )
+                    return ProviderResponse(
+                        model=model,
+                        phase=phase,
+                        elapsed_s=time.monotonic() - started,
+                        error=error,
+                    )
+                self._ling_inflight += 1
+                admitted_ling = True
+
         content: list[str] = []
         reasoning: list[str] = []
         finish_reason: str | None = None
@@ -138,6 +171,10 @@ class DualModelAdjudicator:
                     "reason": error,
                 }
             )
+
+        if admitted_ling:
+            async with self._ling_admission_lock:
+                self._ling_inflight -= 1
 
         response = ProviderResponse(
             model=model,
