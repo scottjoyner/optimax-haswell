@@ -82,10 +82,10 @@ async def run_case(name: str, model: str, prompts: list[str], max_tokens: int, t
 
 
 async def main() -> None:
-    prompt_a = "Compute 23 multiplied by 17. Return only the number."
-    prompt_b = "Compute 29 multiplied by 13. Return only the number."
+    prompt_a = "What is 23 times 17? Explain briefly and give the answer."
+    prompt_b = "What is 29 times 13? Explain briefly and give the answer."
     cases = [
-        run_case("lfm-x2", "lfm", [prompt_a, prompt_b], 32, 60.0),
+        run_case("lfm-x2", "lfm", [prompt_a, prompt_b], 128, 60.0),
         run_case("ling-x1", "ling", [prompt_a], 256, 30.0),
         run_case("ling-x2", "ling", [prompt_a, prompt_b], 256, 30.0),
     ]
