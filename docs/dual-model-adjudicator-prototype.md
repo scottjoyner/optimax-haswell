@@ -156,3 +156,33 @@ justified for routine arithmetic or other tasks where LFM already has a strong
 baseline. A promotion gate still requires harder planted-error tasks where the
 adjudicated answer catches an error that LFM-only misses, while passing a
 baseline regression gate.
+
+## Ralph judge experiment (2026-08-27)
+
+The real Ralph completion-checker failure mode was tested with a planted worker
+response:
+
+```text
+The task is not completed; the database migration still has two failing tests.
+```
+
+The checker sees the word `completed` and returns `True`, so the expected verdict
+is `CONTINUE`, not `STOP`.
+
+The full bounded adjudicator failed this task safely only in the sense that it
+did not falsely claim Ling verification: LFM's draft exhausted its 768-token
+budget, Ling timed out at 30 seconds with reasoning-only output, and the final
+LFM answer repeated an incorrect secondary critique instead of identifying the
+regex false positive.
+
+A concise direct Ling judge completed in 19.60 seconds but also failed
+semantically. It returned `STOP` and explained that the word `completed` triggers
+the stop condition, even though the task is unfinished. This is a critical
+negative result: a fluent LLM judge can recognize the relevant phrase while
+still making the unsafe stop decision.
+
+Therefore LLM-as-judge must remain advisory for Ralph. Deterministic completion
+gates must check tests, required artifacts, process state, and explicit failure
+markers. The loop may stop only when those gates pass; an LLM judge can diagnose
+likely blockers or prioritize the next action but cannot certify completion by
+itself.
