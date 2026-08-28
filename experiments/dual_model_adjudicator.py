@@ -118,10 +118,26 @@ class DualModelAdjudicator:
             await asyncio.wait_for(read_stream(), timeout=timeout_s)
         except asyncio.TimeoutError:
             error = f"timeout after {timeout_s:.3f}s"
-            await self._emit({"type": f"{model}_unavailable", "session_id": session_id, "reason": error})
+            await self._emit(
+                {
+                    "type": f"{model}_unavailable",
+                    "session_id": session_id,
+                    "model": model,
+                    "phase": phase,
+                    "reason": error,
+                }
+            )
         except Exception as exc:  # provider boundary: preserve failure in result
             error = f"{type(exc).__name__}: {exc}"
-            await self._emit({"type": f"{model}_unavailable", "session_id": session_id, "reason": error})
+            await self._emit(
+                {
+                    "type": f"{model}_unavailable",
+                    "session_id": session_id,
+                    "model": model,
+                    "phase": phase,
+                    "reason": error,
+                }
+            )
 
         response = ProviderResponse(
             model=model,
@@ -137,6 +153,8 @@ class DualModelAdjudicator:
                 {
                     "type": f"{model}_unavailable",
                     "session_id": session_id,
+                    "model": model,
+                    "phase": phase,
                     "reason": response.finish_reason or "empty final content",
                 }
             )

@@ -61,7 +61,9 @@ async def test_ling_timeout_is_explicit_and_lfm_can_finish_without_claiming_revi
     assert result.final_answer == "fallback-final"
     assert result.ling_available is False
     assert "ling_unavailable" in result.flags
-    assert any(event["type"] == "ling_unavailable" for event in events)
+    unavailable = next(event for event in events if event["type"] == "ling_unavailable")
+    assert unavailable["model"] == "ling"
+    assert unavailable["phase"] == "initial"
 
 
 @pytest.mark.asyncio
