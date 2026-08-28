@@ -135,3 +135,24 @@ Ling specialist at one active slot with no waiting queue and route overflow to
 LFM or an explicit fallback. The ultra-terse prompt result is retained as a
 prompt-compatibility finding: LFM produced malformed numeric strings for that
 shape but answered correctly when asked for a brief explanation.
+
+## Live deterministic quality suite (2026-08-27)
+
+Three known-answer tasks were run sequentially as LFM-only baselines and as
+bounded LFM→Ling→LFM adjudications with a 20-second Ling deadline:
+
+- arithmetic: LFM-only 0.78 s correct; adjudicated 14.19 s correct; Ling usable;
+- arithmetic-2: LFM-only 0.72 s correct; adjudicated 23.22 s correct; Ling usable;
+- planted false premise: LFM-only 13.87 s correct; adjudicated 28.90 s correct;
+  Ling timed out and was explicitly marked unavailable.
+
+Aggregate result: LFM-only 3/3 correct, adjudicated 3/3 correct, Ling usable in
+2/3 cases. The adjudicator introduced substantial latency and produced no
+correctness improvement on this easy suite. The failure path behaved correctly:
+a Ling timeout did not become a false verification claim.
+
+Conclusion: adjudication must remain selective and experiment-only. It is not
+justified for routine arithmetic or other tasks where LFM already has a strong
+baseline. A promotion gate still requires harder planted-error tasks where the
+adjudicated answer catches an error that LFM-only misses, while passing a
+baseline regression gate.
