@@ -96,3 +96,24 @@ after the timed-out stream was cancelled. This establishes a useful fast/deep
 policy split, but does not yet qualify Ling as a normal-task verifier. The next
 live experiment must measure multiple unrelated conversations under explicit
 admission control.
+
+## Live concurrency evidence (2026-08-27)
+
+Two unrelated adjudication sessions were run concurrently through one shared
+controller with `ling_slots=1`, `ling_queue_limit=0`, and a 45-second Ling
+deadline:
+
+- total wall time: 57.64 seconds;
+- both LFM drafts ran concurrently in approximately 7.0 seconds each;
+- the first Ling request occupied the only specialist slot for 45 seconds;
+- the second Ling request was rejected immediately with
+  `admission full; zero-waiting-queue policy`;
+- both final LFM answers completed correctly;
+- event streams remained isolated (415 events and 30 events respectively);
+- both Lenovo endpoints remained healthy after cancellation.
+
+This supports one-slot/no-waiting-queue admission for the current Lenovo Ling
+specialist. It preserves concurrent LFM progress while preventing unrelated
+conversations from accumulating behind a slow reasoning request. It does not
+prove that two Ling slots improve throughput; that remains a separate measured
+experiment.
