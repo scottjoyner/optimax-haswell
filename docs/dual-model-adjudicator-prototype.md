@@ -64,3 +64,35 @@ Before integration, add:
 The prototype's tests verify initial concurrency, complete dual-response prompt
 assembly, separate reasoning/content preservation, and explicit Ling failure
 handling.
+
+## Live endpoint evidence (2026-08-27)
+
+The real SSE adapter was exercised against the verified Lenovo endpoints:
+
+- LFM: `http://100.105.137.98:1234/v1`, model `lenovo-lfm-cpu`;
+- Ling: `http://100.105.137.98:1236/v1`, model `lenovo-ling-specialist`.
+
+Bounded arithmetic task, deep deadline 300 seconds:
+
+- LFM draft: 16.47 seconds, `finish_reason=stop`;
+- Ling: 188.98 seconds, 4,773 reasoning characters, empty final content,
+  `finish_reason=length`;
+- final LFM synthesis completed;
+- total wall time: 228.09 seconds;
+- result: correct, with `ling_available=false` and
+  `flags=["ling_unavailable"]`.
+
+The same task with a 45-second Ling deadline:
+
+- LFM draft: 15.05 seconds, `finish_reason=stop`;
+- Ling stopped at the 45-second controller deadline with partial content and
+  946 reasoning characters;
+- final LFM synthesis completed;
+- total wall time: 60.26 seconds;
+- result: correct, with explicit `ling_unavailable` state.
+
+Both endpoints continued to return HTTP 200 and the exact expected model IDs
+after the timed-out stream was cancelled. This establishes a useful fast/deep
+policy split, but does not yet qualify Ling as a normal-task verifier. The next
+live experiment must measure multiple unrelated conversations under explicit
+admission control.
