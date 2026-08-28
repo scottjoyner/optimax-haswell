@@ -186,3 +186,23 @@ gates must check tests, required artifacts, process state, and explicit failure
 markers. The loop may stop only when those gates pass; an LLM judge can diagnose
 likely blockers or prioritize the next action but cannot certify completion by
 itself.
+
+## 1,000-case deterministic gate replay (2026-08-27)
+
+The deterministic gate was replayed against 1,000 generated Ralph worker
+reports covering negated completion, failed tests, missing artifacts, rollback
+requirements, explicit success, and ordinary in-progress work.
+
+```text
+Legacy word heuristic:  500/1000 correct; 400 false stops; 100 false continues
+Deterministic gate:     1000/1000 correct; 0 false stops; 0 false continues
+```
+
+The gate requires independent evidence that tests passed, required artifacts are
+present, and the process is healthy. It also normalizes safe negations such as
+`no tests have failed` before checking blocker markers. The replay artifact is
+`/tmp/ralph-completion-gate-1000-20260827.json`.
+
+This is an experiment-level result, not a claim that arbitrary natural-language
+reports are formally verified. Production Ralph integration still requires
+real evidence adapters and task-specific validators.
