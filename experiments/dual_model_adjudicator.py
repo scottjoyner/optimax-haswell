@@ -83,10 +83,15 @@ class DualModelAdjudicator:
         self._ling_admission_lock = asyncio.Lock()
         self._ling_inflight = 0
 
-    async def _emit(self, event: dict[str, Any]) -> None:
-        if self.event_sink is None:
+    async def _emit(
+        self,
+        event: dict[str, Any],
+        sink: Callable[[dict[str, Any]], Awaitable[None] | None] | None = None,
+    ) -> None:
+        sink = self.event_sink if sink is None else sink
+        if sink is None:
             return
-        result = self.event_sink(event)
+        result = sink(event)
         if asyncio.iscoroutine(result):
             await result
 
@@ -97,14 +102,18 @@ class DualModelAdjudicator:
         phase: str,
         timeout_s: float,
         session_id: str,
+        event_sink: Callable[[dict[str, Any]], Awaitable[None] | None] | None = None,
     ) -> ProviderResponse:
+        async def emit(event: dict[str, Any]) -> None:
+            await self._emit(event, event_sink)
+
         started = time.monotonic()
         admitted_ling = False
         if model == "ling" and phase == "initial":
             async with self._ling_admission_lock:
                 if self._ling_inflight >= self.ling_slots:
                     error = "admission full; zero-waiting-queue policy"
-                    await self._emit(
+                    await emit(
                         {
                             "type": "ling_unavailable",
                             "session_id": session_id,
@@ -135,7 +144,7 @@ class DualModelAdjudicator:
                 content.append(content_part)
                 reasoning.append(reasoning_part)
                 finish_reason = chunk.get("finish_reason") or finish_reason
-                await self._emit(
+                await emit(
                     {
                         "type": "token",
                         "session_id": session_id,
@@ -151,7 +160,7 @@ class DualModelAdjudicator:
             await asyncio.wait_for(read_stream(), timeout=timeout_s)
         except asyncio.TimeoutError:
             error = f"timeout after {timeout_s:.3f}s"
-            await self._emit(
+            await emit(
                 {
                     "type": f"{model}_unavailable",
                     "session_id": session_id,
@@ -162,7 +171,7 @@ class DualModelAdjudicator:
             )
         except Exception as exc:  # provider boundary: preserve failure in result
             error = f"{type(exc).__name__}: {exc}"
-            await self._emit(
+            await emit(
                 {
                     "type": f"{model}_unavailable",
                     "session_id": session_id,
@@ -186,7 +195,7 @@ class DualModelAdjudicator:
             error=error,
         )
         if not response.usable and error is None:
-            await self._emit(
+            await emit(
                 {
                     "type": f"{model}_unavailable",
                     "session_id": session_id,
@@ -200,7 +209,6 @@ class DualModelAdjudicator:
     async def run(self, user_prompt: str, *, session_id: str | None = None) -> tuple[AdjudicationResult, list[dict[str, Any]]]:
         session_id = session_id or f"adj-{int(time.time() * 1000)}"
         events: list[dict[str, Any]] = []
-
         original_sink = self.event_sink
 
         async def sink(event: dict[str, Any]) -> None:
@@ -210,48 +218,45 @@ class DualModelAdjudicator:
                 if asyncio.iscoroutine(result):
                     await result
 
-        self.event_sink = sink
-        try:
-            initial_messages = [{"role": "user", "content": user_prompt}]
-            lfm_task = asyncio.create_task(
-                self._consume("lfm", initial_messages, "initial", self.lfm_timeout_s, session_id)
-            )
-            ling_task = asyncio.create_task(
-                self._consume("ling", initial_messages, "initial", self.ling_timeout_s, session_id)
-            )
-            lfm_draft, ling = await asyncio.gather(lfm_task, ling_task)
+        initial_messages = [{"role": "user", "content": user_prompt}]
+        lfm_task = asyncio.create_task(
+            self._consume("lfm", initial_messages, "initial", self.lfm_timeout_s, session_id, sink)
+        )
+        ling_task = asyncio.create_task(
+            self._consume("ling", initial_messages, "initial", self.ling_timeout_s, session_id, sink)
+        )
+        lfm_draft, ling = await asyncio.gather(lfm_task, ling_task)
 
-            flags: list[str] = []
-            if not ling.usable:
-                flags.append("ling_unavailable")
-            ling_payload = ling.analysis_text if ling.analysis_text else "[Ling unavailable or empty]"
-            final_prompt = (
-                "You are the final adjudicator. Answer the original user request. "
-                "Compare the preliminary LFM answer with Ling's independent analysis; "
-                "either may be wrong. Do not expose internal reasoning unless requested.\n\n"
-                f"ORIGINAL REQUEST:\n{user_prompt}\n\n"
-                f"LFM PRELIMINARY ANSWER:\n{lfm_draft.analysis_text or '[LFM unavailable or empty]'}\n\n"
-                f"LING ANALYSIS:\n{ling_payload}\n\n"
-                f"INTERNAL FLAGS: {', '.join(flags) or 'none'}"
-            )
-            final = await self._consume(
-                "lfm",
-                [{"role": "user", "content": final_prompt}],
-                "final",
-                self.lfm_timeout_s,
-                session_id,
-            )
-            if not final.usable:
-                flags.append("final_unavailable")
-            result = AdjudicationResult(
-                session_id=session_id,
-                status="complete" if final.usable else "failed",
-                final_answer=final.content,
-                lfm_draft=lfm_draft,
-                ling_analysis_response=ling,
-                ling_available=ling.usable,
-                flags=flags,
-            )
-            return result, events
-        finally:
-            self.event_sink = original_sink
+        flags: list[str] = []
+        if not ling.usable:
+            flags.append("ling_unavailable")
+        ling_payload = ling.analysis_text if ling.analysis_text else "[Ling unavailable or empty]"
+        final_prompt = (
+            "You are the final adjudicator. Answer the original user request. "
+            "Compare the preliminary LFM answer with Ling's independent analysis; "
+            "either may be wrong. Do not expose internal reasoning unless requested.\n\n"
+            f"ORIGINAL REQUEST:\n{user_prompt}\n\n"
+            f"LFM PRELIMINARY ANSWER:\n{lfm_draft.analysis_text or '[LFM unavailable or empty]'}\n\n"
+            f"LING ANALYSIS:\n{ling_payload}\n\n"
+            f"INTERNAL FLAGS: {', '.join(flags) or 'none'}"
+        )
+        final = await self._consume(
+            "lfm",
+            [{"role": "user", "content": final_prompt}],
+            "final",
+            self.lfm_timeout_s,
+            session_id,
+            sink,
+        )
+        if not final.usable:
+            flags.append("final_unavailable")
+        result = AdjudicationResult(
+            session_id=session_id,
+            status="complete" if final.usable else "failed",
+            final_answer=final.content,
+            lfm_draft=lfm_draft,
+            ling_analysis_response=ling,
+            ling_available=ling.usable,
+            flags=flags,
+        )
+        return result, events
